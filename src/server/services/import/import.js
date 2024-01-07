@@ -105,6 +105,15 @@ const updateOrCreate = async (user, slug, data, idField = 'id') => {
   return entry;
 };
 
+// Update media inside components
+const updateOrCreateComponent = async (user, slug, data) => {
+  const relationAttributes = getModelAttributes(slug, { filterType: ['component', 'dynamiczone', 'media', 'relation'] });
+  for (let attribute of relationAttributes) {
+    data[attribute.name] = await updateOrCreateRelation(user, attribute, data[attribute.name]);
+  }
+  return data;
+};
+
 const updateOrCreateCollectionType = async (user, slug, data, idField) => {
   const whereBuilder = new ObjectBuilder();
   if (data[idField]) {
@@ -119,9 +128,13 @@ const updateOrCreateCollectionType = async (user, slug, data, idField) => {
 
   let entry;
   if (!where[idField]) {
-    entry = await strapi.db.query(slug).create({ data });
+    entry = yield strapi.entityService.create(slug, { data, populate: "*" });
   } else {
-    entry = await strapi.db.query(slug).update({ where, data });
+    const dbEntry = yield strapi.db.query(slug).findOne({ where });
+    entry = yield strapi.entityService.update(slug, dbEntry.id, {
+      data,
+      populate: "*",
+    });
 
     if (!entry) {
       entry = await strapi.db.query(slug).create({ data });
@@ -160,26 +173,26 @@ const updateOrCreateRelation = async (user, rel, relData) => {
   } else if (rel.type === 'dynamiczone') {
     const components = [];
     for (const componentDatum of relData || []) {
-      let component = await updateOrCreate(user, componentDatum.__component, componentDatum);
-      component = { ...component, __component: componentDatum.__component };
+      let component = await updateOrCreateComponent(user, componentDatum.__component, componentDatum);
+      component = { ...componentDatum, __component: componentDatum.__component };
       components.push(component);
     }
     return components;
   } else if (rel.type === 'component') {
     relData = toArray(relData);
     relData = rel.repeatable ? relData : relData.slice(0, 1);
-    const entryIds = [];
+    const entries = [];
     for (const relDatum of relData) {
       if (typeof relDatum === 'number') {
-        entryIds.push(relDatum);
+        entries.push(relDatum);
       } else if (isObjectSafe(relDatum)) {
-        const entry = await updateOrCreate(user, rel.component, relDatum);
-        if (entry?.id) {
-          entryIds.push(entry.id);
+        const entry = await updateOrCreateComponent(user, rel.component, relDatum);
+        if (entry) {
+          entries.push(entry);
         }
       }
     }
-    return rel.repeatable ? entryIds : entryIds?.[0] || null;
+    return rel.repeatable ? entries : entries?.[0] || null;
   } else if (rel.type === 'media') {
     relData = toArray(relData);
     relData = rel.multiple ? relData : relData.slice(0, 1);

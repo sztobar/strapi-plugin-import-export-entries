@@ -209,7 +209,7 @@ const isExtensionAllowed = (ext: string, allowedFileTypes: AllowedMediaTypes[]) 
 };
 
 const ALLOWED_AUDIOS = ['mp3', 'wav', 'ogg'];
-const ALLOWED_IMAGES = ['png', 'gif', 'jpg', 'jpeg', 'svg', 'bmp', 'tif', 'tiff'];
+const ALLOWED_IMAGES = ['png', 'gif', 'jpg', 'jpeg', 'svg', 'bmp', 'tif', 'tiff', 'webp', 'avif'];
 const ALLOWED_VIDEOS = ['mp4', 'avi'];
 
 /** See Strapi file allowedTypes for object keys. */
