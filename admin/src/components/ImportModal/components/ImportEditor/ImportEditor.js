@@ -10,7 +10,7 @@ export const ImportEditor = ({ file, data, dataFormat, slug, onDataChanged, onOp
   const { i18n } = useI18n();
   const [attributeNames, setAttributeNames] = useState([]);
 
-  const { options, getOption, setOption } = useForm({ idField: 'id' });
+  const { options, getOption, setOption } = useForm({ idField: '' });
 
   useEffect(() => {
     const fetchAttributeNames = async () => {
@@ -55,6 +55,7 @@ export const ImportEditor = ({ file, data, dataFormat, slug, onDataChanged, onOp
                 value={getOption('idField')}
                 onChange={(value) => setOption('idField', value)}
               >
+                <Option value="">Default (model[idField] or id)</Option>
                 {attributeNames.map((name) => (
                   <Option key={name} value={name}>
                     {name}

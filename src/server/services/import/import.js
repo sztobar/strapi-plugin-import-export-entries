@@ -86,32 +86,34 @@ const importOtherSlug = async (data, { slug, user, idField }) => {
  * @param {Object} user - User importing the data.
  * @param {string} slug - Slug of the model.
  * @param {Object} data - Data to update/create entries from.
- * @param {string} idField - Field used as unique identifier.
+ * @param {string} idFieldArg - Field used as unique identifier.
  * @returns Updated/created entry.
  */
-const updateOrCreate = async (user, slug, data, idField = 'id') => {
+const updateOrCreate = async (user, slug, data, idFieldArg) => {
   const relationAttributes = getModelAttributes(slug, { filterType: ['component', 'dynamiczone', 'media', 'relation'] });
   for (let attribute of relationAttributes) {
     data[attribute.name] = await updateOrCreateRelation(user, attribute, data[attribute.name]);
   }
 
-  let entry;
+  const schema = getModel(slug);
+  const idField = idFieldArg || schema?.pluginOptions?.['import-export-entries']?.idField || 'id';
+
   const model = getModel(slug);
   if (model.kind === 'singleType') {
-    entry = await updateOrCreateSingleType(user, slug, data, idField);
+    return updateOrCreateSingleType(user, slug, data, idField);
   } else {
-    entry = await updateOrCreateCollectionType(user, slug, data, idField);
+    return updateOrCreateCollectionType(user, slug, data, idField);
   }
-  return entry;
 };
 
-// Update media inside components
-const updateOrCreateComponent = async (user, slug, data) => {
+// Update media/relations inside components
+const parseComponent = async (user, slug, data) => {
   const relationAttributes = getModelAttributes(slug, { filterType: ['component', 'dynamiczone', 'media', 'relation'] });
   for (let attribute of relationAttributes) {
     data[attribute.name] = await updateOrCreateRelation(user, attribute, data[attribute.name]);
   }
-  return data;
+  const { id, ...newComponentData } = data;
+  return newComponentData
 };
 
 const updateOrCreateCollectionType = async (user, slug, data, idField) => {
@@ -137,7 +139,7 @@ const updateOrCreateCollectionType = async (user, slug, data, idField) => {
     });
 
     if (!entry) {
-      entry = await strapi.db.query(slug).create({ data });
+      entry = yield strapi.entityService.create(slug, { data, populate: "*" });
     }
   }
 
@@ -149,9 +151,12 @@ const updateOrCreateSingleType = async (user, slug, data, idField) => {
 
   let [entry] = await strapi.db.query(slug).findMany();
   if (!entry) {
-    entry = await strapi.db.query(slug).create({ data });
+    entry = yield strapi.entityService.create(slug, { data, populate: "*" });
   } else {
-    entry = await strapi.db.query(slug).update({ where: { id: entry.id }, data });
+    entry = yield strapi.entityService.update(slug, entry.id, {
+      data,
+      populate: "*",
+    });
   }
 
   return entry;
@@ -173,8 +178,8 @@ const updateOrCreateRelation = async (user, rel, relData) => {
   } else if (rel.type === 'dynamiczone') {
     const components = [];
     for (const componentDatum of relData || []) {
-      let component = await updateOrCreateComponent(user, componentDatum.__component, componentDatum);
-      component = { ...componentDatum, __component: componentDatum.__component };
+      let component = await parseComponent(user, componentDatum.__component, componentDatum);
+      component = { ...component, __component: componentDatum.__component };
       components.push(component);
     }
     return components;
@@ -186,10 +191,8 @@ const updateOrCreateRelation = async (user, rel, relData) => {
       if (typeof relDatum === 'number') {
         entries.push(relDatum);
       } else if (isObjectSafe(relDatum)) {
-        const entry = await updateOrCreateComponent(user, rel.component, relDatum);
-        if (entry) {
-          entries.push(entry);
-        }
+        const entry = await parseComponent(user, rel.component, relDatum);
+        entries.push(entry);
       }
     }
     return rel.repeatable ? entries : entries?.[0] || null;
