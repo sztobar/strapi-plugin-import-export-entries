@@ -4,6 +4,7 @@ const { CustomSlugs } = require('../../config/constants');
 const { getModelAttributes, getModel } = require('../../utils/models');
 const { findOrImportFile } = require('./utils/file');
 const { parseInputData } = require('./parsers');
+const omit = require('lodash/omit');
 
 /**
  * @typedef {Object} ImportDataRes
@@ -133,12 +134,12 @@ const updateOrCreateCollectionType = async (user, slug, data, idField) => {
     entry = yield strapi.entityService.create(slug, { data, populate: "*" });
   } else {
     const dbEntry = yield strapi.db.query(slug).findOne({ where });
-    entry = yield strapi.entityService.update(slug, dbEntry.id, {
-      data,
-      populate: "*",
-    });
-
-    if (!entry) {
+    if (dbEntry) {
+      entry = yield strapi.entityService.update(slug, dbEntry.id, {
+        data: omit(data, 'id'),
+        populate: "*",
+      });
+    } else {
       entry = yield strapi.entityService.create(slug, { data, populate: "*" });
     }
   }
