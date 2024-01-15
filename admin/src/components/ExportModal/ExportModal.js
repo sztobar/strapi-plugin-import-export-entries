@@ -29,7 +29,7 @@ export const ExportModal = ({ availableExportFormats = [dataFormats.CSV, dataFor
   const { i18n } = useI18n();
   const { search } = useLocation();
   const { downloadFile, withTimestamp } = useDownloadFile();
-  const { slug, isSlugWholeDb } = useSlug();
+  const { slug, id, isSlugWholeDb } = useSlug();
   const { notify } = useAlerts();
   const { getPreferences } = useLocalStorage();
 
@@ -45,11 +45,18 @@ export const ExportModal = ({ availableExportFormats = [dataFormats.CSV, dataFor
 
   const getData = async () => {
     setFetchingData(true);
+
+    let finalSearch = search;
+
+    if (!search && id) {
+      finalSearch = `filters[$and][0][id][$eq]=${id}`;
+    }
+
     try {
       const res = await api.exportData({
         slug,
-        search: qs.stringify(pick(qs.parse(search), ['filters', 'sort'])),
-        applySearch: options.applyFilters,
+        search: qs.stringify(pick(qs.parse(finalSearch), ['filters', 'sort'])),
+        applySearch: { ...options.applyFilters, ...(id ? { applyFilters: true } : {}) },
         exportFormat: options.exportFormat,
         relationsAsId: options.relationsAsId,
         deepness: options.deepness,
